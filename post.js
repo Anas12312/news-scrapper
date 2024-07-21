@@ -9,6 +9,15 @@ const stockTwits = require('./stock');
 const { error } = require('console');
 const csvToObj = require('csv-to-js-parser').csvToObj
 
+
+/////////////////////////
+///  POSTING CONFIGS  ///
+/////////////////////////
+const POST_PER_TIME = 10;  // 10 Posts at a time
+const TIME_IN_HOURS = 12;  // Post every 12 hours
+/////////////////////////
+/////////////////////////
+
 const wixClient = createClient({
     modules: { draftPosts, posts, members },
     auth: ApiKeyStrategy({
@@ -58,7 +67,7 @@ async function createDraftPost(title, content, heroImage, url) {
                                     type: "TEXT",
                                     nodes: [],
                                     textData: {
-                                        text: content,
+                                        text: content + '\n Link: ' + url,
                                         decorations: []
                                     }
                                 }
@@ -126,27 +135,29 @@ const data2 = fs.readFileSync('posted.csv').toString()
 const postedNews = csvToObj(data2, ',', description)
 
 async function run() {
-    let index = 0
-    console.log(news.length + " --- " + postedNews.length)
-    while (!news[index].title || postedNews.filter((p) => p.title === news[index].title).length) {
-        index++
-    }
-    console.log(index)
-    if (index < news.length) {
-        try {
-            console.log(news[index].title)
-            const wixResponse = await createDraftPost(news[index].title, news[index].text, news[index].imageSrc, news[index].link)
-            postedNews.push(news[index])
-            await stockTwits(news[index].title, news[index].link, news[index].imageSrc, news[index].company) //StockTwits
-            console.log(wixResponse)
-            await textTweet(news[index].title + '\n\n' + news[index].text + '\n\n' + "Find out more on: " + news[index].link, news[index].imageSrc + "\n\n#" + news[index].company)
-        } catch (e) {
-            console.log(e)
+    for (let n = 0; n < POST_PER_TIME; n++) {
+        let index = 0
+        console.log(news.length + " --- " + postedNews.length)
+        while (!news[index].title || postedNews.filter((p) => p.title === news[index].title).length) {
+            index++
         }
-        console.log("closing")
-        const csv = new ObjectsToCsv(postedNews);
-        csv.toDisk('./posted.csv');
+        console.log(index)
+        if (index < news.length) {
+            try {
+                console.log(news[index].title)
+                const wixResponse = await createDraftPost(news[index].title, news[index].text, news[index].imageSrc, news[index].link)
+                postedNews.push(news[index])
+                await stockTwits(news[index].title, news[index].link, news[index].imageSrc, news[index].company) //StockTwits
+                console.log(wixResponse)
+                await textTweet(news[index].title + '\n\n' + news[index].text + '\n\n' + "Find out more on: " + news[index].link, news[index].imageSrc + "\n\n#" + news[index].company)
+            } catch (e) {
+                console.log(e)
+            }
+            console.log("closing")
+            const csv = new ObjectsToCsv(postedNews);
+            csv.toDisk('./posted.csv');
+        }
     }
 }
 run()
-setInterval(run, 12 * 60 * 60 * 1000)
+setInterval(run, TIME_IN_HOURS * 60 * 60 * 1000)
